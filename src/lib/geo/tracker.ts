@@ -33,35 +33,40 @@ export class GpsTracker {
           return; // Skip inaccurate readings
         }
 
+        // Clear any previous error on successful fix
+        this.callbacks.onError('');
         this.callbacks.onStatusChange('active');
         this.callbacks.onPosition({
           latitude,
           longitude,
           accuracy,
-          speed,
+          speed: speed != null ? speed * 2.23694 : null, // Convert m/s to mph
           timestamp: position.timestamp,
         });
       },
       (error) => {
-        this.callbacks.onStatusChange('error');
         switch (error.code) {
           case error.PERMISSION_DENIED:
+            this.callbacks.onStatusChange('error');
             this.callbacks.onError('Location permission denied');
             break;
           case error.POSITION_UNAVAILABLE:
+            this.callbacks.onStatusChange('error');
             this.callbacks.onError('Location unavailable');
             break;
           case error.TIMEOUT:
-            this.callbacks.onError('Location request timed out');
+            // Timeout is non-fatal — watchPosition keeps trying
+            this.callbacks.onError('Location request timed out, retrying…');
             break;
           default:
+            this.callbacks.onStatusChange('error');
             this.callbacks.onError('Unknown location error');
         }
       },
       {
         enableHighAccuracy: true,
-        timeout: 10000,
-        maximumAge: 2000,
+        timeout: 30000,
+        maximumAge: 5000,
       }
     );
   }
