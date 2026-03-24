@@ -19,7 +19,7 @@ export function useBoundaryDetector() {
     const allBoundaries: Boundary[] = [...sampleStates, ...sampleCounties, ...sampleTowns];
     detector.loadBoundaries(allBoundaries);
 
-    detector.setTransitionCallback((boundary: Boundary, type: BoundaryType) => {
+    detector.setTransitionCallback((boundary: Boundary | null, type: BoundaryType) => {
       setCurrentLocationRef.current(type, boundary);
     });
 
