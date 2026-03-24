@@ -7,6 +7,7 @@ import { DebugPanel } from './components/DebugPanel';
 import { SimulationControls } from './components/SimulationControls';
 import { GpsControls } from './components/GpsControls';
 import { PackManager } from './components/PackManager';
+import { GpsDebugPage } from './components/GpsDebugPage';
 import { useBoundaryDetector } from './hooks/useBoundaryDetector';
 import { useAppStore } from './store';
 
@@ -34,7 +35,13 @@ function App() {
   return (
     <div className="h-full flex flex-col bg-navy-900">
       <TopBar />
-      {currentView === 'main' ? <MainView /> : <PackManager />}
+      {currentView === 'debug' ? (
+        <GpsDebugPage onClose={() => useAppStore.getState().setCurrentView('main')} />
+      ) : currentView === 'main' ? (
+        <MainView />
+      ) : (
+        <PackManager />
+      )}
     </div>
   );
 }
