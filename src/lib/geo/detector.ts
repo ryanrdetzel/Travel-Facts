@@ -17,9 +17,11 @@ export class BoundaryDetector {
     county: null,
     state: null,
   };
-  private onTransition: ((boundary: Boundary, type: BoundaryType) => void) | null = null;
+  private onTransition: ((boundary: Boundary | null, type: BoundaryType) => void) | null = null;
+  private lastLat = 0;
+  private lastLng = 0;
 
-  setTransitionCallback(cb: (boundary: Boundary, type: BoundaryType) => void) {
+  setTransitionCallback(cb: (boundary: Boundary | null, type: BoundaryType) => void) {
     this.onTransition = cb;
   }
 
@@ -81,6 +83,10 @@ export class BoundaryDetector {
   update(lat: number, lng: number, activeMode: BoundaryType): number {
     let checks = 0;
 
+    // Store latest position so debounce can use current coords
+    this.lastLat = lat;
+    this.lastLng = lng;
+
     // Always check all three levels for subtitles
     const types: BoundaryType[] = ['state', 'county', 'town'];
 
@@ -104,29 +110,31 @@ export class BoundaryDetector {
       if (match && match.id !== this.currentLocations[type]?.id) {
         if (type === activeMode) {
           // Debounce the active mode transition
-          this.startDebounce(match, type, lat, lng);
+          this.startDebounce(match, type);
         } else {
           // Immediately update non-active modes (subtitles)
           this.currentLocations[type] = match;
           this.onTransition?.(match, type);
         }
       } else if (!match && this.currentLocations[type]) {
+        // Notify that we've left this boundary
         this.currentLocations[type] = null;
+        this.onTransition?.(null, type);
       }
     }
 
     return checks;
   }
 
-  private startDebounce(match: Boundary, type: BoundaryType, lat: number, lng: number) {
+  private startDebounce(match: Boundary, type: BoundaryType) {
     if (this.debounceTimer) {
       clearTimeout(this.debounceTimer);
     }
     this.pendingMatch = match;
 
     this.debounceTimer = setTimeout(() => {
-      // Re-verify position
-      const recheck = this.findLocation(lat, lng, type);
+      // Re-verify using the LATEST position, not the stale detection coords
+      const recheck = this.findLocation(this.lastLat, this.lastLng, type);
       if (recheck?.id === match.id) {
         this.currentLocations[type] = match;
         this.onTransition?.(match, type);

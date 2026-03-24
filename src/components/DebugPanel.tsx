@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useAppStore } from '../store';
 
 function formatAge(ms: number): string {
@@ -10,6 +10,14 @@ function formatAge(ms: number): string {
 export function DebugPanel() {
   const { position, polyChecks, gpsError, gpsDebugStats, gpsStatus } = useAppStore();
   const [expanded, setExpanded] = useState(false);
+  const [, setTick] = useState(0);
+
+  // Auto-refresh timestamps every second when expanded
+  useEffect(() => {
+    if (!expanded) return;
+    const id = setInterval(() => setTick((t) => t + 1), 1000);
+    return () => clearInterval(id);
+  }, [expanded]);
 
   const lastRawAge = gpsDebugStats?.lastRawTime
     ? formatAge(Date.now() - gpsDebugStats.lastRawTime)
