@@ -7,17 +7,17 @@ export interface TrackerCallbacks {
   onDebugStats?: (stats: GpsDebugStats) => void;
 }
 
-/** How long to wait before assuming watchPosition has stalled. */
-const STALE_THRESHOLD_MS = 15_000;
-/** How often to check for stale positions. */
-const KEEPALIVE_INTERVAL_MS = 10_000;
+/** Positions older than this are rejected as stale cache. */
+const MAX_POSITION_AGE_MS = 10_000;
+/** Polling interval for getCurrentPosition fallback. */
+const POLL_INTERVAL_MS = 3_000;
 
 export class GpsTracker {
   private watchId: number | null = null;
   private callbacks: TrackerCallbacks;
   private maxAccuracy: number;
-  private lastFixTime = 0;
-  private keepaliveTimer: ReturnType<typeof setInterval> | null = null;
+  private pollTimer: ReturnType<typeof setInterval> | null = null;
+  private lastEmittedTimestamp = 0;
   private prevLat = 0;
   private prevLng = 0;
   private debugStats: GpsDebugStats = {
@@ -45,11 +45,10 @@ export class GpsTracker {
 
     this.callbacks.onStatusChange('acquiring');
     this.startWatch();
-    this.startKeepalive();
+    this.startPolling();
   }
 
   private startWatch() {
-    // Clear any existing watch before creating a new one
     this.clearWatch();
 
     this.watchId = navigator.geolocation.watchPosition(
@@ -63,9 +62,20 @@ export class GpsTracker {
     );
   }
 
+  private startPolling() {
+    this.stopPolling();
+
+    this.pollTimer = setInterval(() => {
+      navigator.geolocation.getCurrentPosition(
+        (position) => this.handlePosition(position),
+        () => {}, // Ignore poll errors — watchPosition handles error reporting
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+      );
+    }, POLL_INTERVAL_MS);
+  }
+
   private handlePosition(position: GeolocationPosition) {
     const { latitude, longitude, accuracy, speed } = position.coords;
-    this.lastFixTime = Date.now();
 
     // Track every raw position for debug
     this.debugStats.rawCount++;
@@ -74,10 +84,24 @@ export class GpsTracker {
     this.debugStats.lastRawLat = latitude;
     this.debugStats.lastRawLng = longitude;
 
+    // Reject stale cached positions
+    const age = Date.now() - position.timestamp;
+    if (age > MAX_POSITION_AGE_MS) {
+      this.debugStats.filteredCount++;
+      this.emitDebugStats();
+      return;
+    }
+
+    // Deduplicate: skip if we already processed this exact fix
+    if (position.timestamp <= this.lastEmittedTimestamp) {
+      this.emitDebugStats();
+      return;
+    }
+
     if (accuracy > this.maxAccuracy) {
       this.debugStats.filteredCount++;
       this.emitDebugStats();
-      return; // Skip inaccurate readings
+      return;
     }
 
     // Check if position actually changed
@@ -87,9 +111,9 @@ export class GpsTracker {
       this.prevLng = longitude;
     }
 
+    this.lastEmittedTimestamp = position.timestamp;
     this.emitDebugStats();
 
-    // Clear any previous error on successful fix
     this.callbacks.onError('');
     this.callbacks.onStatusChange('active');
     this.callbacks.onPosition({
@@ -111,14 +135,12 @@ export class GpsTracker {
         this.callbacks.onStatusChange('error');
         this.callbacks.onError('Location permission denied');
         // Permission denied is fatal — stop everything
-        this.stopKeepalive();
+        this.stopPolling();
         break;
       case error.POSITION_UNAVAILABLE:
-        // Non-fatal on mobile — watchPosition may recover, keepalive will help
         this.callbacks.onError('Location temporarily unavailable, retrying…');
         break;
       case error.TIMEOUT:
-        // Timeout is non-fatal — watchPosition keeps trying
         this.callbacks.onError('Location request timed out, retrying…');
         break;
       default:
@@ -126,36 +148,10 @@ export class GpsTracker {
     }
   }
 
-  /**
-   * Periodically checks if watchPosition has gone silent.
-   * If no fix has arrived recently, requests a one-shot position as a nudge
-   * and restarts watchPosition to recover from stalls.
-   */
-  private startKeepalive() {
-    this.stopKeepalive();
-
-    this.keepaliveTimer = setInterval(() => {
-      if (this.watchId === null) return; // Not tracking
-
-      const elapsed = Date.now() - this.lastFixTime;
-      if (elapsed > STALE_THRESHOLD_MS) {
-        // watchPosition appears stalled — restart it and try a one-shot
-        this.debugStats.restartCount++;
-        this.emitDebugStats();
-        this.startWatch();
-        navigator.geolocation.getCurrentPosition(
-          (position) => this.handlePosition(position),
-          () => {}, // Ignore errors from one-shot fallback
-          { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-        );
-      }
-    }, KEEPALIVE_INTERVAL_MS);
-  }
-
-  private stopKeepalive() {
-    if (this.keepaliveTimer !== null) {
-      clearInterval(this.keepaliveTimer);
-      this.keepaliveTimer = null;
+  private stopPolling() {
+    if (this.pollTimer !== null) {
+      clearInterval(this.pollTimer);
+      this.pollTimer = null;
     }
   }
 
@@ -168,11 +164,11 @@ export class GpsTracker {
 
   stop() {
     this.clearWatch();
-    this.stopKeepalive();
+    this.stopPolling();
     this.callbacks.onStatusChange('off');
   }
 
   isRunning(): boolean {
-    return this.watchId !== null;
+    return this.watchId !== null || this.pollTimer !== null;
   }
 }
