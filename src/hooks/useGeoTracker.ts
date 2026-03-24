@@ -10,6 +10,7 @@ export function useGeoTracker() {
   const setPositionRef = useRef(useAppStore.getState().setPosition);
   const setGpsStatusRef = useRef(useAppStore.getState().setGpsStatus);
   const setGpsErrorRef = useRef(useAppStore.getState().setGpsError);
+  const setGpsDebugStatsRef = useRef(useAppStore.getState().setGpsDebugStats);
 
   useEffect(() => {
     if (isSimulating) {
@@ -24,6 +25,7 @@ export function useGeoTracker() {
       onPosition: (pos) => setPositionRef.current(pos),
       onStatusChange: (status) => setGpsStatusRef.current(status),
       onError: (msg) => setGpsErrorRef.current(msg),
+      onDebugStats: (stats) => setGpsDebugStatsRef.current(stats),
     });
 
     trackerRef.current = tracker;

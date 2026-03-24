@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Boundary, BoundaryType, GpsPosition, GpsStatus, HistoryEntry } from './lib/types';
+import type { Boundary, BoundaryType, GpsDebugStats, GpsPosition, GpsStatus, HistoryEntry } from './lib/types';
 
 interface AppState {
   // GPS
@@ -39,6 +39,8 @@ interface AppState {
   setPolyChecks: (n: number) => void;
   gpsError: string | null;
   setGpsError: (err: string | null) => void;
+  gpsDebugStats: GpsDebugStats | null;
+  setGpsDebugStats: (stats: GpsDebugStats) => void;
 
   // View
   currentView: 'main' | 'download' | 'settings';
@@ -106,6 +108,8 @@ export const useAppStore = create<AppState>((set) => ({
   setPolyChecks: (polyChecks) => set({ polyChecks }),
   gpsError: null,
   setGpsError: (gpsError) => set({ gpsError }),
+  gpsDebugStats: null,
+  setGpsDebugStats: (gpsDebugStats) => set({ gpsDebugStats }),
 
   currentView: 'main',
   setCurrentView: (currentView) => set({ currentView }),
