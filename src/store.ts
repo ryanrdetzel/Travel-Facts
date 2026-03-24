@@ -43,8 +43,8 @@ interface AppState {
   setGpsDebugStats: (stats: GpsDebugStats) => void;
 
   // View
-  currentView: 'main' | 'download' | 'settings';
-  setCurrentView: (view: 'main' | 'download' | 'settings') => void;
+  currentView: 'main' | 'download' | 'settings' | 'debug';
+  setCurrentView: (view: 'main' | 'download' | 'settings' | 'debug') => void;
 }
 
 export const useAppStore = create<AppState>((set) => ({

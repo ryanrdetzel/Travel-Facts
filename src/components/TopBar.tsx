@@ -23,12 +23,20 @@ export function TopBar() {
 
       <div className="flex items-center gap-3">
         {currentView === 'main' ? (
-          <button
-            onClick={() => setCurrentView('download')}
-            className="text-xs text-slate-400 hover:text-gold transition-colors bg-transparent border-none cursor-pointer px-2 py-1"
-          >
-            Packs
-          </button>
+          <>
+            <button
+              onClick={() => setCurrentView('debug')}
+              className="text-xs text-red-400 hover:text-red-300 transition-colors bg-transparent border-none cursor-pointer px-2 py-1 font-mono"
+            >
+              DBG
+            </button>
+            <button
+              onClick={() => setCurrentView('download')}
+              className="text-xs text-slate-400 hover:text-gold transition-colors bg-transparent border-none cursor-pointer px-2 py-1"
+            >
+              Packs
+            </button>
+          </>
         ) : (
           <button
             onClick={() => setCurrentView('main')}
