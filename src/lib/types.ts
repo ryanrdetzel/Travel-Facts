@@ -43,6 +43,24 @@ export interface GpsPosition {
   timestamp: number;
 }
 
+export interface GpsDebugStats {
+  /** Total raw positions received from watchPosition */
+  rawCount: number;
+  /** Positions filtered out due to accuracy threshold */
+  filteredCount: number;
+  /** Positions where lat/lng actually changed from previous */
+  movedCount: number;
+  /** Number of keepalive restarts triggered */
+  restartCount: number;
+  /** Timestamp of last raw position (even if filtered) */
+  lastRawTime: number;
+  /** Accuracy of last raw position (even if filtered) */
+  lastRawAccuracy: number;
+  /** Last raw lat/lng (even if filtered) */
+  lastRawLat: number;
+  lastRawLng: number;
+}
+
 export interface HistoryEntry {
   id: string;
   boundary: Boundary;

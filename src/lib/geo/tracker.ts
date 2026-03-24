@@ -1,9 +1,10 @@
-import type { GpsPosition, GpsStatus } from '../types';
+import type { GpsDebugStats, GpsPosition, GpsStatus } from '../types';
 
 export interface TrackerCallbacks {
   onPosition: (pos: GpsPosition) => void;
   onStatusChange: (status: GpsStatus) => void;
   onError: (message: string) => void;
+  onDebugStats?: (stats: GpsDebugStats) => void;
 }
 
 /** How long to wait before assuming watchPosition has stalled. */
@@ -17,6 +18,18 @@ export class GpsTracker {
   private maxAccuracy: number;
   private lastFixTime = 0;
   private keepaliveTimer: ReturnType<typeof setInterval> | null = null;
+  private prevLat = 0;
+  private prevLng = 0;
+  private debugStats: GpsDebugStats = {
+    rawCount: 0,
+    filteredCount: 0,
+    movedCount: 0,
+    restartCount: 0,
+    lastRawTime: 0,
+    lastRawAccuracy: 0,
+    lastRawLat: 0,
+    lastRawLng: 0,
+  };
 
   constructor(callbacks: TrackerCallbacks, maxAccuracy = 500) {
     this.callbacks = callbacks;
@@ -54,9 +67,27 @@ export class GpsTracker {
     const { latitude, longitude, accuracy, speed } = position.coords;
     this.lastFixTime = Date.now();
 
+    // Track every raw position for debug
+    this.debugStats.rawCount++;
+    this.debugStats.lastRawTime = Date.now();
+    this.debugStats.lastRawAccuracy = accuracy;
+    this.debugStats.lastRawLat = latitude;
+    this.debugStats.lastRawLng = longitude;
+
     if (accuracy > this.maxAccuracy) {
+      this.debugStats.filteredCount++;
+      this.emitDebugStats();
       return; // Skip inaccurate readings
     }
+
+    // Check if position actually changed
+    if (latitude !== this.prevLat || longitude !== this.prevLng) {
+      this.debugStats.movedCount++;
+      this.prevLat = latitude;
+      this.prevLng = longitude;
+    }
+
+    this.emitDebugStats();
 
     // Clear any previous error on successful fix
     this.callbacks.onError('');
@@ -68,6 +99,10 @@ export class GpsTracker {
       speed: speed != null ? speed * 2.23694 : null, // Convert m/s to mph
       timestamp: position.timestamp,
     });
+  }
+
+  private emitDebugStats() {
+    this.callbacks.onDebugStats?.({ ...this.debugStats });
   }
 
   private handleError(error: GeolocationPositionError) {
@@ -105,6 +140,8 @@ export class GpsTracker {
       const elapsed = Date.now() - this.lastFixTime;
       if (elapsed > STALE_THRESHOLD_MS) {
         // watchPosition appears stalled — restart it and try a one-shot
+        this.debugStats.restartCount++;
+        this.emitDebugStats();
         this.startWatch();
         navigator.geolocation.getCurrentPosition(
           (position) => this.handlePosition(position),
