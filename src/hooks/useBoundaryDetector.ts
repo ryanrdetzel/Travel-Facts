@@ -6,16 +6,21 @@ import type { Boundary, BoundaryType } from '../lib/types';
 
 export function useBoundaryDetector() {
   const detectorRef = useRef<BoundaryDetector | null>(null);
-  const { position, activeMode, setCurrentLocation, setPolyChecks } = useAppStore();
+  const position = useAppStore((s) => s.position);
+  const activeMode = useAppStore((s) => s.activeMode);
 
-  // Initialize detector with sample data
+  // Use refs for store actions so effects don't depend on them
+  const setCurrentLocationRef = useRef(useAppStore.getState().setCurrentLocation);
+  const setPolyChecksRef = useRef(useAppStore.getState().setPolyChecks);
+
+  // Initialize detector once
   useEffect(() => {
     const detector = new BoundaryDetector();
     const allBoundaries: Boundary[] = [...sampleStates, ...sampleCounties, ...sampleTowns];
     detector.loadBoundaries(allBoundaries);
 
     detector.setTransitionCallback((boundary: Boundary, type: BoundaryType) => {
-      setCurrentLocation(type, boundary);
+      setCurrentLocationRef.current(type, boundary);
     });
 
     detectorRef.current = detector;
@@ -23,7 +28,7 @@ export function useBoundaryDetector() {
     return () => {
       detector.destroy();
     };
-  }, [setCurrentLocation]);
+  }, []);
 
   // Process position updates
   useEffect(() => {
@@ -34,8 +39,8 @@ export function useBoundaryDetector() {
       position.longitude,
       activeMode
     );
-    setPolyChecks(checks);
-  }, [position, activeMode, setPolyChecks]);
+    setPolyChecksRef.current(checks);
+  }, [position, activeMode]);
 
   return detectorRef;
 }

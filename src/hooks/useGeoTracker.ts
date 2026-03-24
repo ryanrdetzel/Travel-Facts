@@ -1,14 +1,18 @@
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { GpsTracker } from '../lib/geo/tracker';
 import { useAppStore } from '../store';
 
 export function useGeoTracker() {
   const trackerRef = useRef<GpsTracker | null>(null);
-  const { setGpsStatus, setPosition, setGpsError, isSimulating } = useAppStore();
+  const isSimulating = useAppStore((s) => s.isSimulating);
+
+  // Use refs for store actions so the effect doesn't depend on them
+  const setPositionRef = useRef(useAppStore.getState().setPosition);
+  const setGpsStatusRef = useRef(useAppStore.getState().setGpsStatus);
+  const setGpsErrorRef = useRef(useAppStore.getState().setGpsError);
 
   useEffect(() => {
     if (isSimulating) {
-      // Don't use real GPS when simulating
       if (trackerRef.current) {
         trackerRef.current.stop();
         trackerRef.current = null;
@@ -17,20 +21,21 @@ export function useGeoTracker() {
     }
 
     const tracker = new GpsTracker({
-      onPosition: setPosition,
-      onStatusChange: setGpsStatus,
-      onError: (msg) => setGpsError(msg),
+      onPosition: (pos) => setPositionRef.current(pos),
+      onStatusChange: (status) => setGpsStatusRef.current(status),
+      onError: (msg) => setGpsErrorRef.current(msg),
     });
 
     trackerRef.current = tracker;
 
     return () => {
       tracker.stop();
+      trackerRef.current = null;
     };
-  }, [isSimulating, setGpsStatus, setPosition, setGpsError]);
+  }, [isSimulating]);
 
-  const start = () => trackerRef.current?.start();
-  const stop = () => trackerRef.current?.stop();
+  const start = useCallback(() => trackerRef.current?.start(), []);
+  const stop = useCallback(() => trackerRef.current?.stop(), []);
 
   return { start, stop };
 }
